@@ -1,0 +1,216 @@
+' Detect spikes using the threshold suggested in unsupervised spike detection and sorting with wavelets and superparamagnetic clustering
+' Change NumSTD to desired value
+
+' Get the handle of current view
+var ok%, nfiles%, datapath$; 
+var maxdata%, nC2threshold%:=15; 
+maxdata% := 100; ' The maximum number of data files that the algorithm could process
+var datanamelist$[maxdata%];
+FileList(datanamelist$[], 0);
+ok%:=FilePathSet("",0,"Select folder to process");	'select folder for FileList
+if ok%<0 then	
+	Message("Cannot set new directory");	 'cancelled
+    halt; 
+endif;
+datapath$ := FilePath$(0);
+nfiles%:=FileList(datanamelist$[],0);	                         'count .smr files
+if nfiles%=0 then
+	Message("No .smr files found in this folder");
+    halt;
+endif;
+
+var idx%, temppath$;
+for idx% := 0 to nfiles% - 1 do 
+    temppath$ := datapath$ + datanamelist$[idx%];
+    threshold(temppath$);
+next;
+
+'---------------------------------------------------------------------
+'---------------------------------------------------------------------
+func threshold(temppath$)
+var FVH%, birdID$, birdextra$, FullName$, LengthOfName%; 
+' Front View Hanlde, BirdID$, birdextra$, the Full Directory of the file, the length of the Full Directory
+FVH% := FileOpen(temppath$,0,3,"Select data file you want to Threshold: ");; 
+View(FVH%);
+birdID$ :=FileName$(3);  ' This takes the filename of the current view and use it to name the extracted matlab files
+birdextra$ := FileName$(4); ' Obtain the possible trialing number of the file name
+FullName$ := FileName$(); ' Obtain the full directory of the file
+DelStr$(FullName$, LengthOfName% - 3, 4); ' Delete the ".smr" extension
+birdID$ := birdID$ + birdextra$; ' Obtain the whole name of the data file 
+
+
+' Loop Through all the channels that one wants to threshold
+var ChanVec%[nC2threshold%], ChanString$;
+' ChanString$: store the channels that the algorithm needs to process
+' ChanVec[]: vectorized channel array
+ChanString$ := "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"; 'Alternative way to initilize a vector
+ReadSetup(","); ' Deliminator used to Parse ChanString$
+ReadStr(ChanString$, ChanVec%[]); 
+var NumChannel%; ' # of channels needs to be processed
+NumChannel% := Len(ChanVec%[]); 
+
+
+' ------------------ Main Loop for Creating New WaveMark Channels --------------------
+var ChanStd[NumChannel%], ChanThreshold[NumChannel%], ChanNum%, RecordDuration, NumStd, HCPosition; 
+' ChanStd[]: standard deviation for each channels
+NumStd := 2.5; ' Threshold = SD * NumStd
+RecordDuration := MaxTime(1); ' Obtain the recording duration from the 1st Channel
+var LoopIdx%; 
+for LoopIdx% := 0 to NumChannel% - 1 do
+    ChanNum% := ChanVec%[LoopIdx%]; 
+    if ChanNum% = 0 then
+        Continue;
+    endif;
+    NewWaveMark(ChanNum%, ChanStd[], ChanThreshold[], NumStd, RecordDuration, FVH%);
+    Yield(0.1);
+next
+
+' For Debugging
+var TextVH%, LogFile[3][NumChannel%]; ' LogFile%: values printed in the Log
+ArrConst(LogFile[][], 0);
+TextVH% := FileNew(1, 1);
+ArrAdd(LogFile[0][:], ChanVec%[]);
+ArrAdd(LogFile[1][:], ChanStd[]);
+ArrAdd(LogFile[2][:], ChanThreshold[]);
+print("Channel Number, Standard Deviation, Threshold \n");
+print(LogFile[][]`);
+View(TextVH%);
+FileSaveAs(FullName$ + "_ThresholdLog.txt");
+
+FileClose(-1);
+end
+' ------------------ Main Loop for Creating New WaveMark Channels --------------------
+
+
+' ------------------ Export to .mat files ---------------------
+' note: if the file name contains more than 1 dot ".", the channel name would only contain the strings before the first dot. 
+'       this is limitation of export function 
+' to keep consistence between the name of .mat file and the variables it contained, the .mat file also only include the strings
+'       before the 1st dot "."; 
+
+var instruction$, storepath$; 
+storepath$ := FilePath$(0);
+
+var iidx%, stchan%, edchan%;
+stchan% := 17;  'Only extract the spike time for sorted units but not raw recording which is stored in channel 2-17
+edchan% := 60;  
+
+for iidx% := 0 to nfiles% - 1 do 
+    temppath$ := datapath$ + datanamelist$[iidx%];
+    spike2matlab(temppath$, stchan%, edchan%, storepath$);
+next;
+
+
+'---------------------------------------------------------------------
+'-------------------spike2matlab-------------------------------------
+func spike2matlab(temppath$, stchan%, edchan%, storepath$)
+var vh%, stt, ent, chan%,neuo%,bird%, savchan%,title$;
+var name$;
+var birdID$; 
+var birdextra$, residual$; 
+var v711%; 'View created by FileOpen()
+' Open the data file that you want to extract 
+v711%:=FileOpen(temppath$, 0, 3, "Select data file you want to export: ");  
+View(v711%); ' Set the opened data file to "Current View"
+
+FilePathSet(storepath$); ' Set the folder to store the waveforms
+
+birdID$ :=FileName$(3);  ' This takes the filename of the current view and use it to name the extracted matlab files
+birdextra$ := FileName$(4); ' Obtain the possible trialing number of the file name
+birdID$ := birdID$ + birdextra$; ' Obtain the whole name of the data file
+if Right$(birdID$, 1) = "." then  ' if the original file name contains more than one dot "."
+    TrimRight(birdID$, ".");  ' then remove the dot
+endif
+'. Main function
+vh% :=View();
+CursorSet(0);
+
+' Export 
+var channellist$; ' channels to export
+channellist$ := "60,59,58,57,56,55,54,53,52,51,50,49,48,47,46,45,44,43,42,41,40,39,38,37,36,35,34,33,32,31,30,29,28,27,26,25,24,23,22,21,20,19,18,17";
+ExportChanList(1); 'Initialise the channel list
+name$ := storepath$ + birdID$ + "_" + ".mat";
+
+ExportChanList(0, MaxTime(1), channellist$); 
+FileSaveAs(name$,100,0,"",0,
+    "UseSName=1|UseCName=1|WaveTimes=0|BinFreq=0|BinTimes=0|WaveData=2|MarkAs=1|TMarkAs=2|RMarkAs=2|RMarkData=2|WaveMarkAs=2|WaveMarkData=2|Compat=0"); 'Export (string args)
+
+
+FileClose(-1);
+FileClose(0,0);  ' if you want to close the data file after opening it, uncomment this line
+end
+' -------------------------------- export to .mat files --------------------------------------------------------
+
+
+
+
+' ------------------ Procedure of Thresholding -----------------------
+proc NewWaveMark(ChanNum%, ChanStd[], ChanThreshold[], NumStd, RecordDuration, FVH%) 
+' Open the wavemark view
+var HCPosition;
+
+' copy data from channel to array
+var size% := Ceil(RecordDuration * 25000 + 10);
+var myarray[size%]; ' upper limit: 1 hours of recording
+var ndts%, normfactor := 0.6745;
+var nummedian := 4.0;
+ndts% := ChanData(ChanNum%, myarray, 0, RecordDuration);
+Abs(myarray[:ndts%]);
+ArrDiv(myarray[:ndts%], normfactor);
+
+' calculate the threshold according to "unsupervised spike detection and sorting with wavelets and superparamagnetic clustering"
+var med, medthres;
+med := RMedian(myarray[:ndts%]);
+'medthres := med * NumStd;
+resize myarray[1];
+
+ChanStd[ChanNum% - 2] := med;
+ChanThreshold[ChanNum% - 2] := nummedian * ChanStd[ChanNum% - 2]; ' Index starts from 0
+'ChanStd[ChanNum% - 2] := ChanMeasure(ChanNum%, 12, 0, RecordDuration);
+'ChanThreshold[ChanNum% - 2] := NumStd * ChanStd[ChanNum% - 2]; ' Index starts from 0
+HCPosition := HCursor(1, ChanThreshold[ChanNum% - 2], ChanNum%); 
+View(FVH%);
+var WMH%; ' WaveMark View Handle
+WMH% := SSOpen(2, 0); 'Open New Wavemark spike shape dialog
+SSChan(ChanNum%);
+HCursor(1, -5); 'Set Wavemark trigger level
+HCursor(2, ChanThreshold[ChanNum% - 2]); 'Set Wavemark trigger level
+SSParam(20, 32.00, 50, 20.00, 80.00, 3, 0, 64, 0, 9); 'Set all parameters
+SSButton(7, 1); 'Make templates: 1=yes, 0=no
+var ChanNewWaveMark%; 
+var ch%[2];   ' for channel specifications
+ChanNewWaveMark% :=1; 
+if View(ViewLink()).ChanList(ch%, 128) > 0 then 'If unused channels
+    ChanNewWaveMark% := ch%[1];                 'use first
+    SSClassify(1, ChanNewWaveMark%, 6);         'Create new WaveMark channel
+endif;
+FileClose(); 
+return;
+end;
+
+
+func Chan2Array(ChanNum%, RecordDuration)
+var myarray[25000 * 3600 * 1]; ' upper limit: 1 hours of recording
+var ndts%;
+ndts% := ChanData(ChanNum%, myarray, 0, RecordDuration);
+return myarray[:ndts%]
+end
+
+func RMedian(RArray[])
+' calculate the median of an array
+var l% := Len(RArray[]);
+var TArray[l%];
+var m;
+
+ArrConst(TArray[], RArray[]);
+ArrSort(TArray[]);
+
+
+if l% band 1 then
+    m := TArray[l%/2];
+else    
+    ArrSum(TArray[l%/2 -1 : 2], m);
+endif;
+return m;
+
+end

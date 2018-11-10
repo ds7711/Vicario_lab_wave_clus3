@@ -1,0 +1,56 @@
+
+
+func IMedian(IArray%[])
+
+var l% := Len(IArray%[]);
+
+var TArray%[l%];
+var m;
+
+ArrConst(TArray%[], IArray%[]);
+
+ArrSort(TArray%[]);
+
+
+if l% band 1 then
+    
+    m := TArray%[l%/2];
+    
+else    
+    
+    ArrSum(TArray%[l%/2 -1 : 2], m);
+    
+endif
+
+
+return m
+
+end
+
+
+func RMedian(RArray[])
+
+var l% := Len(RArray[]);
+
+var TArray[l%];
+var m;
+
+ArrConst(TArray[], RArray[]);
+
+ArrSort(TArray[]);
+
+
+if l% band 1 then
+    
+    m := TArray[l%/2];
+    
+else    
+    
+    ArrSum(TArray[l%/2 -1 : 2], m);
+    
+endif
+
+
+return m
+
+end

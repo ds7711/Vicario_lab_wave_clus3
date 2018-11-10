@@ -1,0 +1,57 @@
+' Detect spikes using the threshold suggested in unsupervised spike detection and sorting with wavelets and superparamagnetic clustering
+' Change NumSTD to desired value
+
+' Get the handle of current view
+Logclear();		
+var ok%, nfiles%, datapath$; 
+var maxdata%; 
+maxdata% := 10000; ' The maximum number of data files that the algorithm could process
+var datanamelist$[10000];
+FileList(datanamelist$[], 0);
+ok%:=FilePathSet("",0,"Select folder to process");	'select folder for FileList
+if ok%<0 then	
+	Message("Cannot set new directory");	 'cancelled
+    halt; 
+endif;
+datapath$ := FilePath$(0);
+nfiles%:=FileList(datanamelist$[],0);	                         'count .smr files
+if nfiles%=0 then
+	Message("No .smr files found in this folder");
+    halt;
+endif;
+
+var idx%, temppath$;
+for idx% := 0 to nfiles% - 1 do 
+    temppath$ := datapath$ + datanamelist$[idx%];
+    threshold(temppath$);
+next;
+
+'---------------------------------------------------------------------
+'---------------------------------------------------------------------
+func threshold(temppath$)
+var FVH%; 
+' Front View Hanlde, BirdID$, birdextra$, the Full Directory of the file, the length of the Full Directory
+FVH% := FileOpen(temppath$,0,3,"Select data file you want to Threshold: ");; 
+View(FVH%);
+
+PrintLog(FVH%);
+
+var list%[1], nCh%;
+nCh% := ChanList(list%, 16);
+var listwm%[nCh%+1];
+nCh% := ChanList(listwm%, 16);
+ChanDelete(listwm%);
+FileClose(-1, 0);
+end
+
+proc LogClear();
+'show and clear the logfile
+var lh%;
+lh% := Loghandle();
+FrontView(lh%);
+Window(0,0,80,60);	'set window to useful size
+'WindowVisible(1);
+EditSelectAll();		'select text in the log window
+EditClear();			'clears selected text
+return;
+end;

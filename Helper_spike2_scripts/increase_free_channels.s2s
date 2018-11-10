@@ -1,0 +1,65 @@
+' export files as big data so that 200 channels can be writtable
+' Get the handle of current view
+Logclear();		
+var ok%, nfiles%, datapath$, nChans%, newdatapath$; 
+var maxdata%; 
+nChans% := 300;  ' number of channels allowed in the new file
+maxdata% := 10000; ' The maximum number of data files that the algorithm could process
+var datanamelist$[10000]; ' The maximum number of data files that the algorithm could process
+FileList(datanamelist$[], 0);
+ok%:=FilePathSet("",0,"Select folder to process");	'select folder for FileList
+if ok%<0 then	
+	Message("Cannot set new directory");	 'cancelled
+    halt; 
+endif;
+datapath$ := FilePath$(0);
+
+nfiles%:=FileList(datanamelist$[],0);	                         'count .smr files
+if nfiles%=0 then
+	Message("No .smr files found in this folder");
+    halt;
+endif;
+
+ok%:=FilePathSet("",0,"Select folder to save new files");	'select folder for FileList
+if ok%<0 then	
+	Message("Cannot set new directory");	 'cancelled
+    halt; 
+endif;
+newdatapath$ := FilePath$(0);
+
+var idx%;
+for idx% := 0 to nfiles% - 1 do 
+    exportfile(datapath$, newdatapath$, datanamelist$[idx%], nChans%);
+next;
+
+func exportfile(datapath$, newdatapath$, fn$, nChans%)
+var FVH%, temppath$, newpath$; 
+temppath$ := datapath$ + fn$;
+' Front View Hanlde, BirdID$, birdextra$, the Full Directory of the file, the length of the Full Directory
+FVH% := FileOpen(temppath$,0,3, "Select data file you want to Threshold: ");
+PrintLog(FVH%);
+
+View(FVH%);
+'FrontView(FVH%);
+
+ExportChanList(1); 'Initialise the channel list
+'ExportChanList(0, MaxTime(1), "1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,30,31,32");
+ExportChanList(0, MaxTime(1), "1..50");
+newpath$ := newdatapath$ + fn$;
+FileSaveAs(newpath$,0,0,"", nChans%,1); 'Export and set number of channels
+FileClose(-1);
+FileClose(0,0);
+end
+
+proc LogClear();
+'show and clear the logfile
+var lh%;
+lh% := Loghandle();
+FrontView(lh%);
+Window(0,0,80,60);	'set window to useful size
+'WindowVisible(1);
+EditSelectAll();		'select text in the log window
+EditClear();			'clears selected text
+return;
+end;
+

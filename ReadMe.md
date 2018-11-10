@@ -1,0 +1,37 @@
+﻿# Vicario Lab Spike Sorting
+
+Use wave_clus3 for fully unsupervised spike sorting. 
+
+
+## Instructions
+
+1. Add Spike_Sorting folder and _its subfolders_ to Matlab path.
+2. Put all .smr files in one folder. 
+3. Use spike2 scripts to increase the number of supported channels to 300 if original .smr files do not support that. 
+	- Create a new folder to store the new files.
+4. Run vicario_lab_spikesorting.m and follow the instruction.
+5. The detected MUA and SUA will be stored as wavemark channels in original .smr files.
+	- MUA has prefix mu. e.g. mu_3 means MUA from channel 3.
+	- SUA has prefix su. e.g., sua_3_1 means the 1st classes sorted from channel 3.
+
+## Dependencies
+
+1. Developed with Matlab 2016b.
+2. Spike2 MATLAB SON Interface (included) is required to read and modify .smr files.
+3. Wave_clus 3 (as 2018-11-11)  [https://github.com/csn-le/wave_clus](https://github.com/csn-le/wave_clus)
+4. Some functions in wave_clus.m has been modified. Including but not limited to:
+	- wave_clus_OpeningFcn()
+	- load_data_button_Callback()
+5. Signal processing toolbox of Matlab may be required.
+
+## Notes
+
+1. One may want to use thresholding to detect spikes before spike sorting.
+2. In helper_spike2_scripts, scripts can delete old wavemark channels, add free channels, threshold to detect spikes, and export wavemark channels to matlab format.
+3. Alternatively, one could use neo package in Python to directly read .smr files.
+
+## Things to do
+
+1. Support recording with gaps. 
+
+
