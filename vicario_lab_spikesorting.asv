@@ -49,22 +49,19 @@ fid = fopen(fullfile(Data_Store_Folder, 'SpikeSortingLog.txt'), 'wt');
 
 
 %% 3. Loop through each .smr file.
+CED64_path = param.CED64_path;  % add path to CED code
+addpath(cedpath);
+% load ceds64int.dll
+CEDS64LoadLib( cedpath );
 
 % load CED64 library
-cedpath = param.CED64_path;
 if isempty(getenv('CEDS64ML'))
-    setenv('CEDS64ML', cedpath);
+    setenv('CEDS64ML', CED64_path);
 end
 cedpath = getenv('CEDS64ML');
 addpath(cedpath);
 % load ceds64int.dll
 CEDS64LoadLib( cedpath );
-
-% cedpath = param.CED64_path;  % add path to CED code
-% addpath(cedpath);
-% % load ceds64int.dll
-% CEDS64LoadLib( cedpath );
-
 
 % loop through .smr files
 % things to add potentially: remove exisiting wavemark channels

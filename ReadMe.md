@@ -6,11 +6,14 @@ Use wave_clus3 for fully unsupervised spike sorting.
 ## Instructions
 
 1. Add Spike_Sorting folder and _its subfolders_ to Matlab path.
-2. Put all .smr files in one folder. 
-3. Use spike2 scripts to increase the number of supported channels to 300 if original .smr files do not support that. 
-	- Create a new folder to store the new files.
-4. Run vicario_lab_spikesorting.m and follow the instruction.
-5. The detected MUA and SUA will be stored as wavemark channels in original .smr files.
+2. Change parameters in vicario_lab_spikesorting.m before on a new computer. 
+	- param.CED64_path has to be the directory of CEDS64ML.
+	- Criteria for SUA are also defined in param struct. 
+3. Put all .smr files in one folder. 
+4. Use spike2 scripts to increase the number of supported channels to 300 if original .smr files do not support that. 
+	- Create a new folder to store the new .smr files.
+5. Run vicario_lab_spikesorting.m and follow the instruction.
+6. The detected MUA and SUA will be stored as wavemark channels in original .smr files.
 	- MUA has prefix mu. e.g. mu_3 means MUA from channel 3.
 	- SUA has prefix su. e.g., sua_3_1 means the 1st classes sorted from channel 3.
 
