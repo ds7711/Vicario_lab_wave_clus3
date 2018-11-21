@@ -19,7 +19,7 @@ Use wave_clus3 for fully unsupervised spike sorting.
 
 ## Dependencies
 
-1. Developed with Matlab 2016b.
+1. Developed with Matlab 2016b (may or may not work on other versions).
 2. Spike2 MATLAB SON Interface (included) is required to read and modify .smr files.
 3. Wave_clus 3 (as 2018-11-11)  [https://github.com/csn-le/wave_clus](https://github.com/csn-le/wave_clus)
 4. Some functions in wave_clus.m has been modified. Including but not limited to:

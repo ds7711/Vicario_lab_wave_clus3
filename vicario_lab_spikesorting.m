@@ -1,12 +1,10 @@
 
-
 %% implementation details.
 % clear everything
 close all; clc; clear; 
 
-% CEDLIB path
+% CEDLIB path (% change to where CEDS64ML is)
 param.CED64_path = 'C:\Users\Mingwen\Dropbox\MD_scripts\Spike_Sorting\CEDMATLAB\CEDS64ML';
-param.data_directory = 'C:\Users\Mingwen\Desktop\Wave_Clus_ValidationProject';
 
 % parameters
 param.adc_code = 1;  % code label for the stimulus or recording channel
@@ -28,6 +26,9 @@ param.mua_label = 'mu';  % prefix for MUA
 param.sua_label = 'su';  % prefix for SUA
 param.tmp_fn = '___tmp_ss.mat';  % temporary filename used to interact with wave clus
 param.wav_data_keyword = '*.smr';  % '.' any character; '*' any number of character
+
+% data path (optional, where data are stored, not necessary for using the scripts)
+param.data_directory = 'C:\Users\Mingwen\Desktop\Wave_Clus_ValidationProject';
 
 wav_lists = 1 : param.min_chans_allowed;  % test which channel store waveforms within this range.
 
@@ -134,6 +135,8 @@ for iii = 1 : num_files
         for mmm = 1 : length(detected_wav_chans)
         % b) List all wave channels. Loop through each wave channel.
             iChan = detected_wav_chans(mmm);
+            tic;
+            fprintf('\t Channel %d, started at %s\n', iChan, datetime);
             % i. Read the wavechannel.
             try
                 [ fRead, data, fTime ] = CEDS64ReadWaveF( fhand, iChan, maxTimeTicks, 0, maxTimeTicks);
@@ -145,7 +148,6 @@ for iii = 1 : num_files
                 close all;
                 continue;
             end
-
             
             %% test new wave_clus
             
@@ -176,13 +178,19 @@ for iii = 1 : num_files
                 sr = 1.0 / (CEDS64TimeBase(fhand) * CEDS64ChanDiv( fhand, iChan));
                 save(tmp_event.tmp_mat, 'data', 'sr');  % save local file for wave_clus
                 wave_clus(tmp_event);
+                fprintf('\t cluster finished...\n');
+                close all;  % close the gui
             
             catch
                 fprintf(fid, '%s, \t Failed to cluster or create channel, \t %s.\n', [temp_filename, '_chan_', num2str(iChan)], datestr(now, 0));
                 % CEDS64Close( fhand );
                 close all;
+                fprintf('\t !!! cluster ended unexpectedly...!!! \n');
                 
             end
+            tmp_ed = toc;
+            fprintf('\t Channel %d,   ended at %s\n', iChan, datetime);
+            fprintf('\t Elapsed time is %f minutes.\n', tmp_ed/60.0);
             clearvars tmp_event;
             continue;
 
@@ -193,7 +201,8 @@ for iii = 1 : num_files
     % vi. close the current .smr file and continue to next .smr file.
     CEDS64Close( fhand );
     % delete temporary files
-    delete *.dg_01 *.s2rx;
+    delete *.s2rx;  % *.dg_01 will be deleted in run_cluster.m
+    % warning('off', 'MATLAB:DELETE:FileNotFound');  % suppress this warning
     clearvars data;
     close all;
 end
