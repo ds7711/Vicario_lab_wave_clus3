@@ -1,5 +1,6 @@
 function fillret = create_wavemark(fhand, temp_spiketiming, temp_spikewave, iChan, channel_name, param)
 % create a wavemark channel based on timing and spikes
+% return 0 if channels created without problem
 
 spike_ndpts = param.ndpts;
 dRate = param.dRate_wavemark;

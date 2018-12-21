@@ -38,3 +38,29 @@ Use wave_clus3 for fully unsupervised spike sorting.
 1. Support recording with gaps. 
 
 
+## multiple trials
+
+1. Run wave_clus through vicario_lab_spikesorting. 
+
+    global flag;
+    flag.MUA = 0;
+    flag.SUA = 0;
+    flag.trial = 0;
+    
+2. For each channel, run wave_clus N times. During each iteration:
+
+    0. Run wave_clus.
+        * If no spikes detected, flag.MUA = -1
+        * If spikes detected, flga.MUA = 1.
+        
+        * If SUA classified, flag.SUA = # of SUA
+        * Otherwise, flag.SUA = 0
+        
+        * in all cases, flag.trial += 1
+        
+    1. If no spikes detected, ()
+        * break the loop and continue to next channel.
+    2. If spikes detected and SUA detected,
+        * break the loop and continue to next channel.
+    2. If spikes detected but the number of sorted SUA is 0.
+        * loop again.

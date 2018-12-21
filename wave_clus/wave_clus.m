@@ -405,6 +405,10 @@ handles.minclus = handles.par.min_clus;
 
 set(handles.wave_clus_figure,'userdata',USER_DATA);
 
+% customized function
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 % write the clustered spikes back to .smr file
 results.times = index / 1000.0;
 results.classes = classes;
@@ -412,9 +416,10 @@ results.spikes = spikes;
 clearvars -except results eventdata
 % clear clustering_results classes rejected spikes
 new_wavemark_spike2(results, eventdata);
-
-
 return
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
 % mark clusters when new data is loaded

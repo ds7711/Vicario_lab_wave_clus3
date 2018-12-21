@@ -26,6 +26,7 @@ param.mua_label = 'mu';  % prefix for MUA
 param.sua_label = 'su';  % prefix for SUA
 param.tmp_fn = '___tmp_ss.mat';  % temporary filename used to interact with wave clus
 param.wav_data_keyword = '*.smr';  % '.' any character; '*' any number of character
+param.min_trial = 3;  % number of times to try before giving up on a channel
 
 % data path (optional, where data are stored, not necessary for using the scripts)
 param.data_directory = 'C:\Users\Mingwen\Desktop\Wave_Clus_ValidationProject';
@@ -177,9 +178,19 @@ for iii = 1 : num_files
 
                 sr = 1.0 / (CEDS64TimeBase(fhand) * CEDS64ChanDiv( fhand, iChan));
                 save(tmp_event.tmp_mat, 'data', 'sr');  % save local file for wave_clus
-                wave_clus(tmp_event);
-                fprintf('\t cluster finished...\n');
-                close all;  % close the gui
+                
+                % set global variable for trying wave_clus multiple times
+                global flag;
+                flag.MUA = 1;  % assume there is MUA
+                flag.SUA = 0;
+                flag.trial = 0;
+                
+                while flag.MUA > 0 && flag.SUA == 0 && flag.trial < param.min_trial
+                    % try spike sorting for the first time
+                    wave_clus(tmp_event);
+                    fprintf('\t Trial %d, *%d* single units were found.\n', flag.trial, flag.SUA);
+                    close all;  % close the gui
+                end
             
             catch
                 fprintf(fid, '%s, \t Failed to cluster or create channel, \t %s.\n', [temp_filename, '_chan_', num2str(iChan)], datestr(now, 0));
@@ -190,7 +201,7 @@ for iii = 1 : num_files
             end
             tmp_ed = toc;
             fprintf('\t Channel %d,   ended at %s\n', iChan, datetime);
-            fprintf('\t Elapsed time is %f minutes.\n', tmp_ed/60.0);
+            fprintf('\t Elapsed time is %f minutes.\n\n', tmp_ed/60.0);
             clearvars tmp_event;
             continue;
 
