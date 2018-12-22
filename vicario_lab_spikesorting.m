@@ -5,17 +5,20 @@ close all; clc; clear;
 
 % CEDLIB path (% change to where CEDS64ML is)
 param.CED64_path = 'C:\Users\Mingwen\Dropbox\MD_scripts\Spike_Sorting\CEDMATLAB\CEDS64ML';
+wave_clus_param = set_parameters();  % get parameters from wave_clus 
 
 % parameters
 param.adc_code = 1;  % code label for the stimulus or recording channel
 param.record_1st_idx = 2;  % the first channel that is the recording from neurons, 1st adc channel is stimulus by default
 param.int16_factor = 32767;  % change wavefrom from real number to integers
 param.sr = 25000;  % default sampling rate assumed by wav clus
-param.shift = -20;  % spikes need to be aligned by their peak --> determined by number of pre-event points in wav_clus
 param.LEAST_NUM_SPIKE = 100; % the number of spikes in cluster is less than this number, it's not saved
 param.min_chans_allowed = 100;  % minimum number of channels allowed in the .smr file
 param.cr_refractory = 0.002;  % refractory period used to calculate contamination rate
-param.ndpts = 64;  % number of data points for each spike waveform
+param.w_pre = wave_clus_param.w_pre;
+param.w_post = wave_clus_param.w_post;
+param.shift = -wave_clus_param.w_pre;  % spikes need to be aligned by their peak --> determined by number of pre-event points in wav_clus
+param.ndpts = wave_clus_param.w_pre + wave_clus_param.w_post;  % number of data points for each spike waveform
 param.dRate_wavemark = 1000;  % not fully understood
 param.separator = '_';  % separator used to separate channel number from unit number
 param.min_fr = 0.1;  % minimum number of spikes per second
