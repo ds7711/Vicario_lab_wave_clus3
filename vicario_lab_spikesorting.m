@@ -183,16 +183,23 @@ for iii = 1 : num_files
                 save(tmp_event.tmp_mat, 'data', 'sr');  % save local file for wave_clus
                 
                 % set global variable for trying wave_clus multiple times
-                global flag;
+                global flag; %#ok<TLEV>
                 flag.MUA = 1;  % assume there is MUA
                 flag.SUA = 0;
                 flag.trial = 0;
+                force_counter = 0; % stop the loop in case wave clus run unexpectedly
                 
-                while flag.MUA > 0 && flag.SUA == 0 && flag.trial < param.min_trial
+                while flag.MUA > 0 && flag.SUA == 0 && flag.trial < param.min_trial && force_counter < param.min_trial
                     % try spike sorting for the first time
-                    wave_clus(tmp_event);
+                    try
+                        wave_clus(tmp_event);
+                    catch
+                        fprintf('\t !!! Failed to cluster or create channel...!!! \n');
+                        break;
+                    end
                     fprintf('\t Trial %d, *%d* single units were found.\n', flag.trial, flag.SUA);
                     close all;  % close the gui
+                    force_counter = force_counter + 1;
                 end
             
             catch
