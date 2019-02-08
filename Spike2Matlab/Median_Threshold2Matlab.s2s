@@ -1,29 +1,10 @@
 ' Detect spikes using the threshold suggested in unsupervised spike detection and sorting with wavelets and superparamagnetic clustering
 ' Change NumSTD to desired value
 
-' !!!!!!!!!!!!!!!!!!!global variables!!!!!!!!!!!!!!!!!!!
-' !!!!!!!!!!!!!!!!!!!global variables!!!!!!!!!!!!!!!!!!!
-var ChanString$, nC2threshold%:=15;  ' number of channels to perform thresholding
-ChanString$ := "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16";; 'channels to perform thresholding
-
-' actuall threshold used for spike detection
-var NumStd := 3.0;  ' Threshold = SD * NumStd
-
-' channels to export
-var exportflag% := 0; ' if 1, export channels to .mat; if 0, do not do that.
-var channellist$; ' channels to export
-channellist$ := "17..299";  ' 17 to 299: all wavemark channels and event channels
-
-
-' maximum files processed by the script
-var maxdata%; 
-maxdata% := 10000; ' The maximum number of data files that the algorithm could process
-
-' !!!!!!!!!!!!!!!!!!!global variables!!!!!!!!!!!!!!!!!!!
-' !!!!!!!!!!!!!!!!!!!global variables!!!!!!!!!!!!!!!!!!!
-
-
+' Get the handle of current view
 var ok%, nfiles%, datapath$; 
+var maxdata%, nC2threshold%:=15; 
+maxdata% := 10000; ' The maximum number of data files that the algorithm could process
 var datanamelist$[maxdata%];
 FileList(datanamelist$[], 0);
 ok%:=FilePathSet("",0,"Select folder to process");	'select folder for FileList
@@ -59,17 +40,20 @@ birdID$ := birdID$ + birdextra$; ' Obtain the whole name of the data file
 
 
 ' Loop Through all the channels that one wants to threshold
-var ChanVec%[nC2threshold%];
+var ChanVec%[nC2threshold%], ChanString$;
 ' ChanString$: store the channels that the algorithm needs to process
 ' ChanVec[]: vectorized channel array
+ChanString$ := "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16"; 'Alternative way to initilize a vector
 ReadSetup(","); ' Deliminator used to Parse ChanString$
 ReadStr(ChanString$, ChanVec%[]); 
 var NumChannel%; ' # of channels needs to be processed
 NumChannel% := Len(ChanVec%[]); 
 
+
 ' ------------------ Main Loop for Creating New WaveMark Channels --------------------
-var ChanStd[NumChannel%], ChanThreshold[NumChannel%], ChanNum%, RecordDuration, HCPosition; 
+var ChanStd[NumChannel%], ChanThreshold[NumChannel%], ChanNum%, RecordDuration, NumStd, HCPosition; 
 ' ChanStd[]: standard deviation for each channels
+NumStd := 2.5; ' Threshold = SD * NumStd
 RecordDuration := MaxTime(1); ' Obtain the recording duration from the 1st Channel
 var LoopIdx%; 
 for LoopIdx% := 0 to NumChannel% - 1 do
@@ -107,18 +91,19 @@ end
 var instruction$, storepath$; 
 storepath$ := FilePath$(0);
 
-var iidx%;
-if exportflag% = 1 then' only export if flag is 1
-    for iidx% := 0 to nfiles% - 1 do 
-        temppath$ := datapath$ + datanamelist$[iidx%];
-        spike2matlab(temppath$, storepath$);
-    next;
-endif;
+var iidx%, stchan%, edchan%;
+stchan% := 17;  'Only extract the spike time for sorted units but not raw recording which is stored in channel 2-17
+edchan% := 60;  
+
+for iidx% := 0 to nfiles% - 1 do 
+    temppath$ := datapath$ + datanamelist$[iidx%];
+    spike2matlab(temppath$, stchan%, edchan%, storepath$);
+next;
 
 
 '---------------------------------------------------------------------
 '-------------------spike2matlab-------------------------------------
-func spike2matlab(temppath$, storepath$)
+func spike2matlab(temppath$, stchan%, edchan%, storepath$)
 var vh%, stt, ent, chan%,neuo%,bird%, savchan%,title$;
 var name$;
 var birdID$; 
@@ -140,6 +125,9 @@ endif
 vh% :=View();
 CursorSet(0);
 
+' Export 
+var channellist$; ' channels to export
+channellist$ := "1,17..299";
 ExportChanList(1); 'Initialise the channel list
 name$ := storepath$ + birdID$ + "_" + ".mat";
 
@@ -162,24 +150,24 @@ proc NewWaveMark(ChanNum%, ChanStd[], ChanThreshold[], NumStd, RecordDuration, F
 var HCPosition;
 
 ' copy data from channel to array
-'var size% := Ceil(RecordDuration * 25000 + 10);
-'var myarray[size%]; ' upper limit: 1 hours of recording
-'var ndts%, normfactor := 0.6745;
-'var num_median := 4.0;
-'ndts% := ChanData(ChanNum%, myarray, 0, RecordDuration);
-'Abs(myarray[:ndts%]);
-'ArrDiv(myarray[:ndts%], normfactor);
+var size% := Ceil(RecordDuration * 25000 + 10);
+var myarray[size%]; ' upper limit: 1 hours of recording
+var ndts%, normfactor := 0.6745;
+var nummedian := 4.0;
+ndts% := ChanData(ChanNum%, myarray, 0, RecordDuration);
+Abs(myarray[:ndts%]);
+ArrDiv(myarray[:ndts%], normfactor);
 
 ' calculate the threshold according to "unsupervised spike detection and sorting with wavelets and superparamagnetic clustering"
-'var med, medthres;
-'med := RMedian(myarray[:ndts%]);
+var med, medthres;
+med := RMedian(myarray[:ndts%]);
 'medthres := med * NumStd;
-'resize myarray[1];
+resize myarray[1];
 
-'ChanStd[ChanNum% - 2] := med;
-'ChanThreshold[ChanNum% - 2] := num_median * ChanStd[ChanNum% - 2]; ' Index starts from 0
-ChanStd[ChanNum% - 2] := ChanMeasure(ChanNum%, 12, 0, RecordDuration);
-ChanThreshold[ChanNum% - 2] := NumStd * ChanStd[ChanNum% - 2]; ' Index starts from 0
+ChanStd[ChanNum% - 2] := med;
+ChanThreshold[ChanNum% - 2] := nummedian * ChanStd[ChanNum% - 2]; ' Index starts from 0
+'ChanStd[ChanNum% - 2] := ChanMeasure(ChanNum%, 12, 0, RecordDuration);
+'ChanThreshold[ChanNum% - 2] := NumStd * ChanStd[ChanNum% - 2]; ' Index starts from 0
 HCPosition := HCursor(1, ChanThreshold[ChanNum% - 2], ChanNum%); 
 View(FVH%);
 var WMH%; ' WaveMark View Handle
@@ -202,9 +190,7 @@ end;
 
 
 func Chan2Array(ChanNum%, RecordDuration)
-var arraysize%;
-arraysize% := 25000 * 3600 * 2;
-var myarray[arraysize%]; ' upper limit: 2 hours of recording
+var myarray[25000 * 3600 * 1]; ' upper limit: 1 hours of recording
 var ndts%;
 ndts% := ChanData(ChanNum%, myarray, 0, RecordDuration);
 return myarray[:ndts%]
