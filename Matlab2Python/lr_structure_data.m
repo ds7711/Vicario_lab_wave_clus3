@@ -170,6 +170,7 @@ num_chan = length(data_name_list); % number of data channels
 Response_Spikes = cell(num_chan, 1);
 Control_Spikes = cell(num_chan, 1);
 chan_num_vec = zeros(num_chan, 1);
+Spike_Waveforms = cell(num_chan, 1);
 
 for i = 1 : num_chan
     clear all_fns temp_data_name_splited data spiketiming Response_Time_Range Control_Time_Range Response_FR Control_FR average_control;
@@ -198,6 +199,9 @@ for i = 1 : num_chan
 
     Control_Time_Range = [TCSE(:,3) - repmat(Pre_Stim, size(TCSE(:, 3))) TCSE(:,3)];
     [~, Control_Spikes{i, 1}] = Spikes_Between(spiketiming, Control_Time_Range);    % Absolute Spike Timing within the specified Control window
+    
+    % average spike waveform
+    Spike_Waveforms{i, 1} = mean(data.values, 1);
 end
 
 %% Transform the absolute spike_timing into relative timing (alligned to the stimulus onset) 
@@ -268,4 +272,16 @@ else
     result.master = 1;
 end
 % clearvars -except header YYY filename path;
+
+% add spikewaveform into the 
+spikewaveforms = NaN(num_chan, length(Spike_Waveforms{1, 1}));
+bird_name_vec = NaN(num_chan, 1);
+for i  = 1 : num_chan
+    spikewaveforms(i, 1:end) = Spike_Waveforms{i, 1};
+    bird_name_vec(i, 1) = num_birdid;
+end
+result.spike_waveforms = spikewaveforms;
+result.birdid = bird_name_vec;
+result.unit = chan_num_vec;
+
 end
