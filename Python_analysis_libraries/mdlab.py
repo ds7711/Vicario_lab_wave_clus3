@@ -1189,6 +1189,48 @@ def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
     return (header_df, spike_data, stims, path_name)
 
 
+def mat2spikewaveforms(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", electrode_adjustment=0, convert_birdid=False):
+    """
+    load a list of matlab matrix files in the directory, concatenate them, and save them as .npz file
+    :param npz_filename:
+    :param directory:
+    :param electrode_adjustment:
+    :param convert_birdid:
+    :return:
+    """
+    import Tkinter
+    from tkFileDialog import askdirectory
+
+    # load the data from matlab files using gui
+    root = Tkinter.Tk()
+    path_name = askdirectory(initialdir=directory, title='select where matrix files are located')
+    root.withdraw()  # close the main root window
+    kw = "*.mat"
+
+    files = glob.glob(path_name + "/" + kw)
+    path_length = len(path_name) + 1
+
+    birdid = []
+    unit = []
+    spikewaveform = []
+    filename_list = []
+
+    for fn in files:
+        # add recording names to the header for backup use
+        recording_fn = fn[path_length:]
+        print(recording_fn)
+        data = scipy.io.loadmat(fn)
+        tmp_birdid = [birdid2str(int(item)) for item in data["birdids"]]
+        birdid.append(tmp_birdid)
+        unit.append(data["units"])
+        spikewaveform.append(data["spike_waveforms"])
+        filename_list.append([recording_fn] * len(data["units"]))
+
+    np.savez_compressed(path_name + "/" + npz_filename,
+                        birdid=np.concatenate(birdid), unit=np.concatenate(unit),
+                        spikewaveform=np.vstack(spikewaveform), filenames=filename_list)
+
+
 def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", electrode_adjustment=0, convert_birdid=False):
     """
     load a list of matlab matrix files in the directory, concatenate them, and save them as .npz file
@@ -1282,7 +1324,6 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
         header_all["birdid"] = [str2birdid(bird) for bird in header_all.birdid.values]
 
     np.savez_compressed(path_name + "/" + npz_filename, header=header_all.values, spikes=spike_all, filenames=filename_array, stim_waveforms=stim_waveforms)
-
 
 def save_npz_data(filename, header, spikes, stims):
     """
