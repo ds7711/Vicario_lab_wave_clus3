@@ -27,7 +27,7 @@ param.ID_keyword = '_IDstim';
 param.sound_keyword = '_sound';
 param.bin_size = 0.0005; % bin size in seconds; 
 param.master_kw = 'M';
-param.slave_kw = 'L';
+param.slave_kw = 'S';
 param.equal_threshold = 5e-4; % if the difference between two values are less than this, they are considered as equal.
 
 
@@ -70,21 +70,26 @@ if ~isempty(unpaired_files{1, 1})
             stim_codes = tmp_result.stim_codes;
             stim_waveforms = tmp_result.stim_waveforms;
             stim_sr = tmp_result.stim_sr;
+            spike_waveforms = tmp_result.spike_waveforms;
+            birdids = tmp_result.birdid;
+            units = tmp_result.unit;
             
             num_dpts = size(spiketrains);
             num_dpts = num_dpts(2);
 
             if strcmp(tmp_hem(2), right_kw)  % if from right hemisphere
                 header(:, 2) = header(:, 2) + param.right_adjustment; % electrodes in the right hemisphere are represented by bigger numbers
+                units = units + param.right_adjustment;
             end
 
             header(:, 2) = (header(:, 2) - param.chan2ele) * param.float2int; % multiple it by 100 to convert to int
+            units = (units - param.chan2ele) * param.float2int;
             % does not remove hemisphere information if unpaired
             % fn_splited{2} = '';
             tmp_combined_fn = strjoin(fn_splited, '_');
 
             tmp_name = [new_path, 'matrix_', tmp_combined_fn]; % use matrix to indicate matrix representation of the data
-            eval(['save ', tmp_name, ' header spiketrains stim_codes stim_waveforms stim_sr -v7']); % save the files in the new folder using eval
+            eval(['save ', tmp_name, ' header spiketrains stim_codes stim_waveforms stim_sr spike_waveforms birdids units -v7']); % save the files in the new folder using eval
             disp([num2str(iii), 'th file processed.']);
         else
             disp('Unpaired files from slave PC will not be processed!');
@@ -143,13 +148,21 @@ if ~isempty(fn_pairs{1})  % only process if paired files were found
 
         if strcmp(tmp_hem_1(2), left_kw)
             header_2(:, 2) = header_2(:, 2) + param.right_adjustment; % electrodes in the right hemisphere are represented by bigger numbers
+            result_2.unit = result_2.unit + param.right_adjustment; % change unit name associated with spikewaveform
             header = cat(1, header_1, header_2);
             spiketrains = cat(1, spiketrains_1(:, 1:num_dpts), spiketrains_2(:, 1:num_dpts));
         else
             header_1(:, 2) = header_1(:, 2) + param.right_adjustment;
+            result_1.unit = result_1.unit + param.right_adjustment;
             header = cat(1, header_2, header_1);
             spiketrains = cat(1, spiketrains_2(:, 1:num_dpts), spiketrains_1(:, 1:num_dpts));
         end
+        
+        % process spike waveforms
+        spike_waveforms = [result_1.spike_waveforms; result_2.spike_waveforms];
+        birdids = [result_1.birdid; result_2.birdid];
+        units = [result_1.unit; result_2.unit];
+        units = (units - param.chan2ele) * param.float2int;
 
         clearvars header_1 header_2 spiketrains_1 spiketrains_2
         % add sanity check
@@ -181,7 +194,7 @@ if ~isempty(fn_pairs{1})  % only process if paired files were found
         tmp_combined_fn = strjoin(fn_splited, '_');
 
         tmp_name = [new_path, 'matrix_', tmp_combined_fn]; % use matrix to indicate matrix representation of the data
-        eval(['save ', tmp_name, ' header spiketrains stim_codes stim_waveforms stim_sr -v7']); % save the files in the new folder using eval
+        eval(['save ', tmp_name, ' header spiketrains stim_codes stim_waveforms stim_sr spike_waveforms birdids units -v7']); % save the files in the new folder using eval
         disp([num2str(iii), 'th file processed.']);
 
         iii = iii + 1;
