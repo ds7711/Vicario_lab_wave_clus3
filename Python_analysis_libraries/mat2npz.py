@@ -8,11 +8,11 @@ import matplotlib.ticker as ticker
 
 import mdlab as mdl
 
-cnd = "blocked"
+cnd = "contrast"
 dur = ""
 fn = "_".join([cnd, dur]) + ".npz"
 # pdb.set_trace()
 mdl.batch_mat2npz(fn)
-print
-print
-print
+print("completed")
+print("completed")
+print("completed")

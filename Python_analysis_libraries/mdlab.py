@@ -1099,6 +1099,36 @@ def step_sum(data, step_size, axis=1):
         return None
 
 
+def list_files(regexp=None):
+    """
+    find files in the selected directories and return their absolute path
+    :param: regexp, a regular expression string used to filter files.\n
+        e.g., ".*\.npz" will only list files with .npz extension.\n
+              ".*\.mat" will only list files with .mat extension.\n
+    :return:
+    """
+    import re
+    import Tkinter
+    from tkFileDialog import askopenfilename, askdirectory
+    from os import walk
+
+    # load the data from matlab files using gui
+    root = Tkinter.Tk()
+    path_name = askdirectory(parent=root, initialdir="./")
+    root.withdraw()  # close the main root window
+    # path = "C:\\Users\\md\\Dropbox\\Lab_Data\\2015_NCM_syllable_surprisal\\Raw_data\\YW570\\"
+    fn_list = []
+    for (dirpath, dirnames, filenames) in walk(path_name):
+        if regexp is None:
+            filenames = [dirpath + "/" + item for item in filenames]
+            fn_list.extend(filenames)
+        else:
+            filenames = [dirpath + "/" + item for item in filenames if re.search(regexp, item)]
+            fn_list.extend(filenames)
+    return (fn_list)
+
+
+
 def get_pathname(data_dir="D:\\Google_Drive\\Lab_Data\\"):
     # from Tkinter import *
     import Tkinter
@@ -1296,7 +1326,7 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
 
     np.savez_compressed(path_name + "/" + npz_filename, header=header_all.values, spikes=spike_all, filenames=filename_array,
                         stim_waveforms=stim_waveforms,
-                        spike_condtions=np.asarray(condtion), spike_ids=np.asarray(id), spike_waveforms=spikewaveforms)
+                        spike_conditions=np.asarray(condtion), spike_ids=np.asarray(id), spike_waveforms=spikewaveforms)
 
 
 def save_npz_data(filename, header, spikes, stims):
