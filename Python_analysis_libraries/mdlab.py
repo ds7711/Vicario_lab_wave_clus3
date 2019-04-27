@@ -1280,7 +1280,7 @@ def get_pathname(data_dir="D:\\Google_Drive\\Lab_Data\\"):
     return (path_name)
 
 
-def load_file(data_dir="D:\\Google_Drive\\Lab_Data\\"):
+def load_mat_file(data_dir="D:\\Google_Drive\\Lab_Data\\"):
     # from Tkinter import *
     import Tkinter
     from tkFileDialog import askopenfilename
@@ -1344,7 +1344,6 @@ def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
     note:
         the spiketrain of each trial is centered according to the stimulus onset time
     """
-    # from Tkinter import *
     import Tkinter
     from tkFileDialog import askopenfilename
 
@@ -1352,8 +1351,6 @@ def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
     root = Tkinter.Tk()
     path_name = askopenfilename(parent=root, initialdir=data_dir)
     root.withdraw()  # close the main root window
-    # path = "C:\\Users\\md\\Dropbox\\Lab_Data\\2015_NCM_syllable_surprisal\\Raw_data\\YW570\\"
-    # filename = "matrix_MDYW570_Kai_CanarySongContext_6scISI_.mat"
     header_df, spike_data, stims = _mat2npz(path_name, electrode_adjustment, convert_birdid)
     return (header_df, spike_data, stims, path_name)
 
@@ -1599,7 +1596,6 @@ def outlier_detection(data, num_mad=4, propout=0.25):
         return (data, None)
     else:
         raise ValueError("Wrong input data!!!")
-
 
 
 # helper functions
