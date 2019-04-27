@@ -34,11 +34,53 @@ resolution = 5e-4
 mua_sua_distinguisher = 100  # if an electrode number can be divieded by 100 exactly, it is MUA. otherwise, SUA.
 
 
+class Folder(object):
+    """
+    store the default folder to store figure and results
+    """
+    def __init__(self, data_type):
+        self.__figure = "figure"
+        self.__result = "result"
+        self.__mua = "mua"
+        self.__sua = "sua"
+        self.__data = "data"
+        self.__data_type = data_type
+
+    def figure(self):
+        directory = "./%s_%s/" % (self.__data_type, self.__figure)
+        if self.__data_type == self.__mua:
+            return directory
+        elif self.__data_type == self.__sua:
+            return directory
+        else:
+            raise ValueError("Unknown data type: only support 'sua' & 'mua'. ")
+
+    def result(self):
+        directory = "./%s_%s/" % (self.__data_type, self.__result)
+        if self.__data_type == self.__mua:
+            return directory
+        elif self.__data_type == self.__sua:
+            return directory
+        else:
+            raise ValueError("Unknown data type: only support 'sua' & 'mua'. ")
+
+    def data(self):
+        directory = "./%s/" % self.__data
+        return directory
+
+
+
 class PARAM(object):
     resolution = resolution
     mua_sua_distinguisher = mua_sua_distinguisher
     outlier_threshold = 3.5
     stim_waveform_start_idx = 4 # stimulus waveform starts from 4th column in stim_waveforms
+
+    # parameters used to test whether an electrode is responsive or not
+    trial_per_test = 40  # neural responses are checked every these trials to ensure stationary responses
+    stats_test = "binomial"  # what statistic test are used
+    fr_lb = 1e-2  # stim - baseline should be positive
+    sig_level = 0.05
 
 
 # firing rate calculation constant
@@ -50,7 +92,7 @@ class FRCC(object):
                  trailing_prop=0.1,  #
                  trailing_duration=0.1,  #
                  bs_prop_out=0.0,  #
-                 bs_outlier_factor=3,  #
+                 bs_outlier_factor=3.5,  #
                  stats_test="binomial",  # test used to responsiveness measurement
                  bs_smooth_type="robust_avg",
                  bs_smooth_mg=10):
@@ -109,12 +151,12 @@ frcc = FRCC()
 def response_criterion(res_type):
     class MUA_RC(object):
         pval = 0.05
-        lb = 3
+        lb = 10
         ub = 10000
 
     class SUA_RC(object):
         pval = 0.05
-        lb = 3
+        lb = 0.1
         ub = 10000
 
     res_dict = {"sua": SUA_RC, "mua": MUA_RC}
@@ -197,7 +239,7 @@ class SpikeData(object):
             shift=-1: return data whose index = index - 1
 
         """
-        logidx = np.ones(len(self.header), dtype=bool)
+        logidx = np.ones(len(self.header), dtype=np.bool)
         for condition in keyword_params:
             condition_values = keyword_params[condition]
             condition_logidx = np.zeros(len(self.header), dtype=bool)
@@ -514,6 +556,101 @@ class SpikeData(object):
         else:
             return (fr_list)
 
+    def batch_process_data(self, func, DAC, frcc=frcc):
+        """
+        calculate desired quantity for each electrode.
+        :param func: function used to analyze individual electrode
+        :param DAC: a dictionary storing analysis specific parameters
+        :param frcc: common parameters used to calculate neural responses
+        :return:
+        """
+        identifier_list = []
+        data_list = []
+        res_list = []
+        for birdid in self.birdid:
+            bird_data = self.get_kw_SpikeData(birdid=birdid)
+            for ele_id in bird_data.electrodes:
+                ele_data = bird_data.get_kw_SpikeData(electrode=ele_id)
+                ele_responsivenss = ele_data.res_check(frcc).res_data[0]
+                tmp_data = func(ele_data, DAC, frcc)
+                identifier_list.append(birdid + separator + str(ele_id))
+                res_list.append(ele_responsivenss)
+                data_list.append(tmp_data)
+            gc.collect()
+        # print(birdid)
+        return (np.asarray(identifier_list), data_list, np.asarray(res_list))
+
+    def bird_batch_pd(self, func, DAC, frcc=frcc):
+        pass
+
+    def _id2header(self):
+        """
+        add id to the header. header = birdid + "___" + electrode
+        :return:
+        """
+        self.header["id"] = [tmp_bird + separator + str(ele) for tmp_bird, ele in
+                             zip(self.header.birdid.values, self.header.electrode.values)]
+
+    def filter(self, func):
+        """
+        Remove non-responding sites and keep only responsive sites.
+        If nothing is specified, one checks whether the electrodes keep responding.
+        :param func: a function handle used to test the electrode data
+        :return:
+        """
+        non_responsive_logidxes = np.zeros(len(self.header), dtype=np.bool)
+        for bird in self.birdid:
+            bird_data = self.get_kw_SpikeData(birdid=bird)
+            for ele in bird_data.electrodes:
+                absidx, logidx = self.get_index(birdid=bird, electrode=ele)
+                ele_data = self.get_idx_SpikeData(absidx, logidx)
+                # responsive = func(ele_data)
+                responsive = func(ele_data)
+                if not responsive:
+                    non_responsive_logidxes += logidx  # set non-responsive index to true
+                    # raster_plot(ele_data.spikes)
+        responsive_logidxes = ~non_responsive_logidxes
+        return SpikeData(self.header[responsive_logidxes], self.spikes[responsive_logidxes, :], self.stims)
+
+    def site_stats(self, frcc=frcc, param=PARAM):
+        """
+        test whether a site is good or not.\n
+        This is a minimal test about whether one electrode/neuron is responding or not. Not specific to any stimuli.
+        A site is responding as long as it is responsive to at least one stimuli.
+        It does NOT care whether it is an inhibitory or excitatory site.
+        Returned data are in different order from res_check.
+        :return:
+        """
+        trailing_type = frcc.trailing_type
+        trailing_param = frcc.get_trailing_param(trailing_type)
+        stats_test = frcc.stats_test
+
+        # initialize container
+        _stim = []
+        _p_value = []
+        _avg_responses = []
+        _statistics = []
+        for stim in self.stim:
+            # print("The electrode and stimulus are %f and %f" % (electrode, stim))
+            tmp_data = self.get_kw_SpikeData(stim=stim)
+            tmp_responses = tmp_data.firing_rates(trailing_type, trailing_param, fr_type=2)
+            if stats_test == "binomial":
+                num_positive = np.sum(tmp_responses > 0)
+                total = len(tmp_responses)
+                p_value = scipy.stats.binom_test(num_positive, total, p=0.5)
+                statistics = num_positive * 1.0 / total
+            elif stats_test == "t_test":
+                statistics, p_value = scipy.stats.ttest_1samp(tmp_responses, popmean=0)
+            else:
+                statistics, p_value = scipy.stats.wilcoxon(tmp_responses)
+            _stim.append(stim)
+            _p_value.append(p_value)
+            _statistics.append(statistics)
+            _avg_responses.append(robust_mean(tmp_responses, num_mad=param.outlier_threshold))
+        tmp_data = np.vstack((_p_value, _avg_responses, _statistics))
+        df = pd.DataFrame(data=tmp_data.T, index=_stim, columns=["p", "fr", "stats"])
+        return (df)
+
     def res_check(self, frcc=frcc, fr_type=2,
                   filter_type="p_value", param=PARAM):
         """
@@ -577,94 +714,106 @@ class SpikeData(object):
                                       "res": _quick_responsiveness_filter})
         return (responsive_df)
 
-    def batch_process_data(self, func, DAC, frcc=frcc):
+
+class HistologyData(object):
+    """
+    stores histology data. can be used to separate electrodes into different categories.
+    """
+    def __init__(self, id_area_df, areas2include=None, area2adr_dict=None, missing="missing"):
         """
-        calculate desired quantity for each electrode.
-        :param func: function used to analyze individual electrode
-        :param DAC: a dictionary storing analysis specific parameters
-        :param frcc: common parameters used to calculate neural responses
+        load the dataframe to populate internal data.
+        :param id_area_df: a pandas dataframe from .csv file. has the following columns.
+            1. id: string representation of the bird id
+            2. electrode: electrode = (channel number - 1) * 100 for MUA. SUA from the same site has the same base + 1/2/3 for SUA.
+            3. histology: area from the histology.
+            4. function: functional correction for sites that are not clear from histology.
+            5. area: area decided based on all information. Final histology decision.
+            6. histology_check (optional): flag whether the histology has been checked.
+            7. function_check (optional): whether the site has been checked by independent recording files.
+            8. exp (optional): name of the experiment.
+            9. comment (optional): any extra comment.
+        :param: area2adr_dict: a dictionary
+        :param missing:
+        """
+
+        def __update_area(df, missing=missing):
+            """
+            determine the area based on histology and function data.
+            :param df:
+            :param missing: value used to fill missing values.
+            :return:
+            """
+            area = df.histology
+            if df.function != missing:  # if function specifies area, use it
+                area = df.function
+            if df.comment != missing:  # if comment is not empty, return as bad channel
+                area = "bad"
+            return area
+
+        def __area2adr(id_area_df, area2adr_dict=None):
+            """
+            add a fake adaptation rate to the data so that it is compatible for old code that uses adaptation rate to separate electrodes.
+            :param area2adr_dict: a dictionary whose key is area, value is an adaptation rate.
+                e.g., {"L2": 1, "NCM": -1}. Then one could use threshold 0 to decide which electrode is from L2 or NCM
+            :return:
+            """
+            id_area_df["adr"] = None
+            if area2adr_dict is not None:
+                for key in area2adr_dict.keys():
+                    id_area_df.loc[id_area_df["area"] == key, "adr"] = area2adr_dict[key]
+            return id_area_df
+
+        def __filter(df, areas2include):
+            """
+            in place filter the data.
+            select areas only from those listed. All other entries will be deleted.
+            :param areas2include: a list stores areas to include. e.g., ["L2", "NCM"]
+            :return:
+            """
+            logidx = np.zeros(len(df), dtype=np.bool)
+            for area in areas2include:
+                logidx += df["area"].values == area
+            id_area_df = df[logidx]
+            return id_area_df
+
+        # fill missing value
+        self.id_area_df = id_area_df.fillna(missing)
+        # reset index
+        self.id_area_df.reset_index(drop=True, inplace=True)
+
+        # combine birdid and electrode number
+        self.id_area_df["id"] = self.id_area_df.apply(lambda df: df.id + separator + str(df.electrode), axis=1)
+        # update area based on histology, function correction, and comment
+        self.id_area_df["area"] = self.id_area_df.apply(__update_area, axis=1)
+
+        # filter the id_area_df
+        if areas2include is not None:
+            self.id_area_df = __filter(self.id_area_df, areas2include)
+
+        # add fake adaptation rate for old codes
+        self.id_area_df = __area2adr(self.id_area_df, area2adr_dict)
+        # create dictionary for fast processing
+        self.id_area_dict = df2dict(self.id_area_df, key="id", val="area")
+        self.id_adr_dict = df2dict(self.id_area_df, "id", "adr")
+
+    def get_area(self, id):
+        """
+        get the area/histology for the unique id.
+        :param id: a string that combines birdid and electrode number.
         :return:
         """
-        identifier_list = []
-        data_list = []
-        res_list = []
-        for birdid in self.birdid:
-            bird_data = self.get_kw_SpikeData(birdid=birdid)
-            for ele_id in bird_data.electrodes:
-                ele_data = bird_data.get_kw_SpikeData(electrode=ele_id)
-                ele_responsivenss = ele_data.res_check(frcc).res_data[0]
-                tmp_data = func(ele_data, DAC, frcc)
-                identifier_list.append(birdid + separator + str(ele_id))
-                res_list.append(ele_responsivenss)
-                data_list.append(tmp_data)
-            gc.collect()
-        # print(birdid)
-        return (np.asarray(identifier_list), data_list, np.asarray(res_list))
-
-    # def convert2binsdata(self, bin_size=100):
-    #     """
-    #     convert spike data into binddata for further processing.\n
-    #     :param spikedata:
-    #     :return:
-    #     """
-    #     header = pd.DataFrame.copy(self.header)
-    #     resolution = header.resolution.values * bin_size
-    #     header.drop(["resolution"], axis=1)
-    #     header["resolution"] = resolution
-    #     bins = step_sum(self.spikes, step_size=bin_size)
-    #     return (SpikeData(header=header, spikes=bins))
-
-    def bird_batch_pd(self, func, DAC, frcc=frcc):
-
-        pass
-
-    def _id2header(self):
-        """
-        add id to the header. header = birdid + "___" + electrode
-        :return:
-        """
-        self.header["id"] = [tmp_bird + separator + str(ele) for tmp_bird, ele in
-                             zip(self.header.birdid.values, self.header.electrode.values)]
-
-    def site_stats(self, frcc=frcc, param=PARAM):
-        """
-        test whether a site is good or not.\n
-        This is a minimal test about whether one electrode/neuron is responding or not. Not specific to any stimuli.
-        A site is responding as long as it is responsive to at least one stimuli.
-        It does NOT care whether it is an inhibitory or excitatory site.
-        Returned data are in different order from res_check.
-        :return:
-        """
-        trailing_type = frcc.trailing_type
-        trailing_param = frcc.get_trailing_param(trailing_type)
-        stats_test = frcc.stats_test
-
-        # initialize container
-        _stim = []
-        _p_value = []
-        _avg_responses = []
-        _statistics = []
-        for stim in self.stim:
-            # print("The electrode and stimulus are %f and %f" % (electrode, stim))
-            tmp_data = self.get_kw_SpikeData(stim=stim)
-            tmp_responses = tmp_data.firing_rates(trailing_type, trailing_param, fr_type=2)
-            if stats_test == "binomial":
-                num_positive = np.sum(tmp_responses > 0)
-                total = len(tmp_responses)
-                p_value = scipy.stats.binom_test(num_positive, total, p=0.5)
-                statistics = num_positive * 1.0 / total
-            elif stats_test == "t_test":
-                statistics, p_value = scipy.stats.ttest_1samp(tmp_responses, popmean=0)
+        split_results = id.split(separator)
+        if len(split_results) != 2:
+            raise ValueError("Wrong ID name, do you use '___' to join birdid and electrode number? ")
+        else:
+            bird, ele = split_results
+            ele_int = int(ele)
+            ele = int(ele_int / mua_sua_distinguisher) * mua_sua_distinguisher
+            new_id = bird + separator + str(ele)
+            if new_id not in self.id_area_dict:
+                return None
             else:
-                statistics, p_value = scipy.stats.wilcoxon(tmp_responses)
-            _stim.append(stim)
-            _p_value.append(p_value)
-            _statistics.append(statistics)
-            _avg_responses.append(robust_mean(tmp_responses, num_mad=param.outlier_threshold))
-        tmp_data = np.vstack((_p_value, _avg_responses, _statistics))
-        df = pd.DataFrame(data=tmp_data.T, index=_stim, columns=["p", "fr", "stats"])
-        return (df)
-
+                return self.id_area_dict[new_id]
 
 # plotting functions
 def raster_plot(spike_matrix, resolution=resolution, figsize=(5, 4), new_figure=True, linewidth=0.9):
@@ -1099,36 +1248,6 @@ def step_sum(data, step_size, axis=1):
         return None
 
 
-def list_files(regexp=None):
-    """
-    find files in the selected directories and return their absolute path
-    :param: regexp, a regular expression string used to filter files.\n
-        e.g., ".*\.npz" will only list files with .npz extension.\n
-              ".*\.mat" will only list files with .mat extension.\n
-    :return:
-    """
-    import re
-    import Tkinter
-    from tkFileDialog import askopenfilename, askdirectory
-    from os import walk
-
-    # load the data from matlab files using gui
-    root = Tkinter.Tk()
-    path_name = askdirectory(parent=root, initialdir="./")
-    root.withdraw()  # close the main root window
-    # path = "C:\\Users\\md\\Dropbox\\Lab_Data\\2015_NCM_syllable_surprisal\\Raw_data\\YW570\\"
-    fn_list = []
-    for (dirpath, dirnames, filenames) in walk(path_name):
-        if regexp is None:
-            filenames = [dirpath + "/" + item for item in filenames]
-            fn_list.extend(filenames)
-        else:
-            filenames = [dirpath + "/" + item for item in filenames if re.search(regexp, item)]
-            fn_list.extend(filenames)
-    return (fn_list)
-
-
-
 def get_pathname(data_dir="D:\\Google_Drive\\Lab_Data\\"):
     # from Tkinter import *
     import Tkinter
@@ -1182,7 +1301,6 @@ def _mat2npz(path_name, electrode_adjustment, convert_birdid):
     stim = np.squeeze(data["stim_codes"])
     stim_sr = data["stim_sr"][0][0]
     stim_waveforms = data["stim_waveforms"]
-    birdids, units, tmp_spikewaveforms = data["birdids"], data["units"], data["spike_waveforms"]
     # 1st column: birdid, 2nd column: stim_code, 3rd column: sampling rate, 4th column: NaN, 5th and later: stimulus waveforms
     stim_arry = []
     bird = int(header[0, 0])
@@ -1191,7 +1309,7 @@ def _mat2npz(path_name, electrode_adjustment, convert_birdid):
         stim_arry.append(tmp_array)
     stim_arry = np.asarray(stim_arry)
 
-    return (header_df, spike_data, stim_arry, birdids, units, tmp_spikewaveforms)
+    return (header_df, spike_data, stim_arry)
 
 
 def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
@@ -1247,17 +1365,12 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
     pre_stims = []  # store pre_stim from each data files
     stim_waveforms = []
     stim_max_ndpts = 0  # number of data points in the longest stimulus
-    # spikewaveform data
-    condtion = []
-    id = []
-    spikewaveforms = []
-
 
     for fn in files:
         # add recording names to the header for backup use
         recording_fn = fn[path_length:]
         print(recording_fn)
-        header, spikes, stims, birdids, units, tmp_spikewaveforms = _mat2npz(fn, electrode_adjustment, convert_birdid)
+        header, spikes, stims = _mat2npz(fn, electrode_adjustment, convert_birdid)
         fn_list.extend([recording_fn] * len(header))
         header_list.append(header)
         spikes_list.append(spikes)
@@ -1267,13 +1380,6 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
         stim_waveforms.append(stims)
         if stims.shape[1] > stim_max_ndpts:
             stim_max_ndpts = stims.shape[1]
-
-        tmp_id = [birdid2str(birdids[i, 0]) + separator + str(int(units[i, 0])) for i in range(len(units))]
-        tmp_condition = [recording_fn] * len(tmp_id)
-
-        condtion.extend(tmp_condition)
-        id.extend(tmp_id)
-        spikewaveforms.extend(tmp_spikewaveforms)
 
     # pad short stim with NaN so that all stimuli have the same length
     for i in range(len(stim_waveforms)):
@@ -1324,9 +1430,7 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
     if (type(header_all["birdid"].values[0]) is np.str):
         header_all["birdid"] = [str2birdid(bird) for bird in header_all.birdid.values]
 
-    np.savez_compressed(path_name + "/" + npz_filename, header=header_all.values, spikes=spike_all, filenames=filename_array,
-                        stim_waveforms=stim_waveforms,
-                        spike_conditions=np.asarray(condtion), spike_ids=np.asarray(id), spike_waveforms=spikewaveforms)
+    np.savez_compressed(path_name + "/" + npz_filename, header=header_all.values, spikes=spike_all, filenames=filename_array, stim_waveforms=stim_waveforms)
 
 
 def save_npz_data(filename, header, spikes, stims):
@@ -1682,13 +1786,19 @@ def robust_mean(data, num_mad=3.0, propout=0.25, axis=1):
     def ___robust_mean(arr, num_mad, propout):
         logidx = ~np.isnan(arr)
         arr = arr[logidx]
+        if len(arr) == 0:
+            return np.nan
+        if np.all(arr == 0):
+            return 0.0
         avg = scipy.stats.trim_mean(arr, propout)
         std = sm.robust.mad(arr, c=0.6744897501960817)
         tmp_max = avg + std * num_mad
         tmp_min = avg - std * num_mad
         logidx = np.logical_and(arr > tmp_min, arr < tmp_max)
         arr = arr[logidx]
-        return np.mean(arr)
+        if len(arr) == 0:
+            return np.nan
+        return (np.mean(arr))
 
     if len(data.shape) == 1:
         return ___robust_mean(data, num_mad=num_mad, propout=propout)
@@ -1703,6 +1813,7 @@ def robust_mean(data, num_mad=3.0, propout=0.25, axis=1):
 
 
 ## helper functions
+
 def ___step_sum_2d(arr, bin_size):
     """
     calculate the step sum of a matrix along the 2nd axis. sum of equally spaced columns.
@@ -1714,7 +1825,7 @@ def ___step_sum_2d(arr, bin_size):
     new_nc = int(nc / bin_size)
     sub_arr = arr[:, : new_nc * bin_size]
     new_arr = np.reshape(sub_arr, (nr, new_nc, bin_size), order="C")
-    return np.sum(new_arr, axis=-1)
+    return (np.sum(new_arr, axis=-1))
 
 
 def mad(arr, c=0.6744897501960817):
@@ -1740,7 +1851,6 @@ def binomial_test(x, p):
     pval = scipy.stats.binom_test(n_successes, n=n, p=p)
     return (n_successes * 1.0 / n, pval)
 
-
 def sua2channel(sua_int):
     """
     convert a SUA number to MUA so that its location can be retrieved.
@@ -1750,6 +1860,79 @@ def sua2channel(sua_int):
     """
     return int((sua_int / mua_sua_distinguisher) * mua_sua_distinguisher)
 
+
+def trial_check(ele_data, frcc=frcc, param=PARAM):
+    """
+    simple check whether the electrodes keep responding.
+    :param ele_data:
+    :param frcc:
+    :param param:
+    :return:
+    """
+    trailing_type = frcc.trailing_type
+    trailing_param = frcc.get_trailing_param(trailing_type)
+    stats_test = param.stats_test
+
+    frs = ele_data.firing_rates(frcc.trailing_type, trailing_param=trailing_param, fr_type=2)
+    num_trials = len(frs)
+    num_splits = int(num_trials / param.trial_per_test)
+    splits = np.linspace(0, num_trials, num_splits, dtype=np.int)
+
+    for i in range(1, len(splits)):
+        tmp_responses = frs[splits[i-1] : splits[i]]
+        if np.all(tmp_responses == 0):  # edge case, everything is zero
+            return False
+        avg_fr = robust_mean(tmp_responses)
+        if stats_test == "binomial":
+            num_positive = np.sum(tmp_responses > 0)
+            total = np.sum(tmp_responses != 0) + 1
+            p_value = scipy.stats.binom_test(num_positive, total, p=0.5)
+            statistics = num_positive * 1.0 / total
+        elif stats_test == "t_test":
+            statistics, p_value = scipy.stats.ttest_1samp(tmp_responses, popmean=0)
+        else:
+            statistics, p_value = scipy.stats.wilcoxon(tmp_responses)
+        if avg_fr < param.fr_lb or p_value > param.sig_level:
+            return False
+    return True
+
+def stim_check(ele_data, frcc=frcc, param=PARAM):
+    """
+    simple check whether every stimuli is responding. Only include excitatory sites.
+    :param ele_data:
+    :param frcc:
+    :param param:
+    :return:
+    """
+    trailing_type = frcc.trailing_type
+    trailing_param = frcc.get_trailing_param(trailing_type)
+    stats_test = param.stats_test
+
+    # initialize container
+    _stim = []
+    _p_value = []
+    _avg_responses = []
+    _statistics = []
+    for stim in ele_data.stim:
+        # print("The electrode and stimulus are %f and %f" % (electrode, stim))
+        tmp_data = ele_data.get_kw_SpikeData(stim=stim)
+        tmp_responses = tmp_data.firing_rates(trailing_type, trailing_param, fr_type=2)
+        if len(tmp_responses) < 3:
+            return False
+        avg_fr = robust_mean(tmp_responses)
+        if stats_test == "binomial":
+            num_positive = np.sum(tmp_responses > 0)
+            total = np.sum(tmp_responses != 0) + 1
+            p_value = scipy.stats.binom_test(num_positive, total, p=0.5)
+            statistics = num_positive * 1.0 / total
+        elif stats_test == "t_test":
+            statistics, p_value = scipy.stats.ttest_1samp(tmp_responses, popmean=0)
+        else:
+            statistics, p_value = scipy.stats.wilcoxon(tmp_responses)
+
+        if avg_fr < param.fr_lb or p_value > param.sig_level:
+            return False
+    return True
 
 
 def re_ext(directory, old_ext_pattern, new_ext):
@@ -1793,48 +1976,6 @@ def spike_times2spike_matrix(spike_times, dur=False, resolution=resolution, padd
     for idx, timings in enumerate(spike_times):
         spikematrix.append(np.histogram(timings, bins)[0])
     return np.asarray(spikematrix, dtype=np.bool)
-
-
-def mat2spikewaveforms(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", electrode_adjustment=0, convert_birdid=False):
-    """
-    load a list of matlab matrix files in the directory, concatenate them, and save them as .npz file
-    :param npz_filename:
-    :param directory:
-    :param electrode_adjustment:
-    :param convert_birdid:
-    :return:
-    """
-    import Tkinter
-    from tkFileDialog import askdirectory
-
-    # load the data from matlab files using gui
-    root = Tkinter.Tk()
-    path_name = askdirectory(initialdir=directory, title='select where matrix files are located')
-    root.withdraw()  # close the main root window
-    kw = "*.mat"
-
-    files = glob.glob(path_name + "/" + kw)
-    path_length = len(path_name) + 1
-
-    birdid = []
-    unit = []
-    spikewaveform = []
-    filename_list = []
-
-    for fn in files:
-        # add recording names to the header for backup use
-        recording_fn = fn[path_length:]
-        print(recording_fn)
-        data = scipy.io.loadmat(fn)
-        tmp_birdid = [birdid2str(int(item)) for item in data["birdids"]]
-        birdid.append(tmp_birdid)
-        unit.append(data["units"])
-        spikewaveform.append(data["spike_waveforms"])
-        filename_list.append([recording_fn] * len(data["units"]))
-
-    np.savez_compressed(path_name + "/" + npz_filename,
-                        birdid=np.concatenate(birdid), unit=np.concatenate(unit),
-                        spikewaveform=np.vstack(spikewaveform), filenames=filename_list)
 
 
 
