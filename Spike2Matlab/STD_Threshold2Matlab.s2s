@@ -7,10 +7,10 @@ var ChanString$, nC2threshold%:=15;  ' number of channels to perform thresholdin
 ChanString$ := "2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16";; 'channels to perform thresholding
 
 ' actuall threshold used for spike detection
-var NumStd := 3.0;  ' Threshold = SD * NumStd
+var NumStd := 2.0;  ' Threshold = SD * NumStd
 
 ' channels to export
-var exportflag% := 1; ' if 1, export channels to .mat; if 0, do not do that.
+var exportflag% := 0; ' if 1, export channels to .mat; if 0, do not do that.
 var channellist$; ' channels to export
 channellist$ := "1,17..299";  ' 17 to 299: all wavemark channels and event channels
 
