@@ -24,14 +24,18 @@ import gc
 # common parameters
 data_folder = "./data/"  # folder where data is stored
 figure_folder = "./figure/"
-mua_folder = "./mua_data/"
-sua_folder = "./sua_data/"
 separator = "___"  # separator to combine string
-paper_figsize = (4, 2.5)
-poster_figsize = (8, 6)
-robust_adr_propout = 0.2
 resolution = 5e-4
 mua_sua_distinguisher = 100  # if an electrode number can be divieded by 100 exactly, it is MUA. otherwise, SUA.
+robust_adr_propout = 0.2  # proption of responses to leave out when calculating robust adapation rate
+
+# recommended constants and archives codes
+# paper_figsize = (4, 2.5)
+# poster_figsize = (8, 6)
+# data analysis constant
+# DAC = {
+#     "prop_cut": 0.0, # proportion of the data to trim from both sides to caculate the robust mean
+# }
 
 
 class Folder(object):
@@ -69,7 +73,6 @@ class Folder(object):
         return directory
 
 
-
 class PARAM(object):
     resolution = resolution
     mua_sua_distinguisher = mua_sua_distinguisher
@@ -83,10 +86,8 @@ class PARAM(object):
     sig_level = 0.05
 
 
-# firing rate calculation constant
-
 class FRCC(object):
-
+    # firing rate calculation constant
     def __init__(self,
                  trailing_type="proportional",  #
                  trailing_prop=0.1,  #
@@ -162,10 +163,6 @@ def response_criterion(res_type):
     res_dict = {"sua": SUA_RC, "mua": MUA_RC}
     return (res_dict[res_type])
 
-# data analysis constant
-# DAC = {
-#     "prop_cut": 0.0, # proportion of the data to trim from both sides to caculate the robust mean
-# }
 
 class SpikeData(object):
     """
@@ -815,7 +812,7 @@ class HistologyData(object):
             else:
                 return self.id_area_dict[new_id]
 
-# plotting functions
+
 def raster_plot(spike_matrix, resolution=resolution, figsize=(5, 4), new_figure=True, linewidth=0.9):
     """
     input:
@@ -994,7 +991,7 @@ def quick_cdf_plot(df, new_figure=False, linewidth=1.5, figsize=(6, 4), color="b
     return (fig)
 
 
-def pretty_specgram(y, fs, fft_size=512, figsize=poster_figsize,
+def pretty_specgram(y, fs, fft_size=512, figsize=(8, 6),
                     cmap="jet", kill_off=True):
     def kill_off_signal(data):
         data_size = data.shape
@@ -1031,10 +1028,6 @@ def pretty_specgram(y, fs, fft_size=512, figsize=poster_figsize,
     return (fh, log_spectrogram)
 
 
-
-
-
-# data analysis functions
 def smooth_baseline(frs, frcc):
     """
     smooth the baseline firing rate
@@ -1100,7 +1093,7 @@ def dur_extract(cse):
     return np.vstack((unq_stim_code, stim_dur))
 
 
-def firing_rate(spikes, time_range=None, resolution=resolution):
+def spikes2fr(spikes, time_range=None, resolution=resolution):
     """
     calculate firing rates during specific time range
     input:
@@ -1166,7 +1159,6 @@ def _robust_adaptation_rate(response, trial=None, prop_out=robust_adr_propout):
     return adr
 
 
-# define a function that converts numerical bird id back to string
 def birdid2str(birdid):
     """
     convert numeric bird name into string representation
@@ -1246,6 +1238,34 @@ def step_sum(data, step_size, axis=1):
     else:
         print("Error!")
         return None
+
+def list_files(regexp=None):
+    """
+    find files in the selected directories and return their absolute path
+    :param: regexp, a regular expression string used to filter files.\n
+        e.g., ".*\.npz" will only list files with .npz extension.\n
+              ".*\.mat" will only list files with .mat extension.\n
+    :return:
+    """
+    import re
+    import Tkinter
+    from tkFileDialog import askopenfilename, askdirectory
+    from os import walk
+
+    # load the data from matlab files using gui
+    root = Tkinter.Tk()
+    path_name = askdirectory(parent=root, initialdir="./")
+    root.withdraw()  # close the main root window
+    # path = "C:\\Users\\md\\Dropbox\\Lab_Data\\2015_NCM_syllable_surprisal\\Raw_data\\YW570\\"
+    fn_list = []
+    for (dirpath, dirnames, filenames) in walk(path_name):
+        if regexp is None:
+            filenames = [dirpath + "/" + item for item in filenames]
+            fn_list.extend(filenames)
+        else:
+            filenames = [dirpath + "/" + item for item in filenames if re.search(regexp, item)]
+            fn_list.extend(filenames)
+    return (fn_list)
 
 
 def get_pathname(data_dir="D:\\Google_Drive\\Lab_Data\\"):
@@ -1583,7 +1603,6 @@ def outlier_detection(data, num_mad=4, propout=0.25):
 
 
 # helper functions
-
 def df2dict(df, key, val):
     """
     convert a dataframe into a dictionary for fast mapping
@@ -1896,6 +1915,7 @@ def trial_check(ele_data, frcc=frcc, param=PARAM):
             return False
     return True
 
+
 def stim_check(ele_data, frcc=frcc, param=PARAM):
     """
     simple check whether every stimuli is responding. Only include excitatory sites.
@@ -2130,30 +2150,5 @@ def spike_times2spike_matrix(spike_times, dur=False, resolution=resolution, padd
 #         stim_idx = np.flatnonzero(stim_logidx)
 #         return stim_idx
 
-
-
-# # define a function that returns the rank of a value in a array
-# def rank_of_a(aaa, my_array):
-#     """
-#     Find the rank of aaa in my_array in ascending order
-#     input:
-#         aaa: scalar
-#         my_array: 1D numpy array, no duplicate values
-#     output:
-#         a_rank: integer, the rank of aaa
-#     """
-#     my_array = np.unique(my_array)
-#     if aaa in my_array:
-#         idx = np.flatnonzero(aaa == my_array)
-#         my_array[idx[0]] = my_array[0]
-#         my_array[0] = aaa
-#         sort_array = my_array
-#     else:
-#         sort_array = np.zeros((my_array.shape[0] + 1))
-#         sort_array[0] = aaa
-#         sort_array[1:] = my_array
-#     sort_idx = np.argsort(sort_array)
-#     a_rank = np.flatnonzero(sort_idx == 0)[0]
-#     return (a_rank)
 
 
