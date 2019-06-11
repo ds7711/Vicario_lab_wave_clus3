@@ -1321,6 +1321,7 @@ def _mat2npz(path_name, electrode_adjustment, convert_birdid):
     stim = np.squeeze(data["stim_codes"])
     stim_sr = data["stim_sr"][0][0]
     stim_waveforms = data["stim_waveforms"]
+    birdids, units, tmp_spikewaveforms = data["birdids"], data["units"], data["spike_waveforms"]
     # 1st column: birdid, 2nd column: stim_code, 3rd column: sampling rate, 4th column: NaN, 5th and later: stimulus waveforms
     stim_arry = []
     bird = int(header[0, 0])
@@ -1329,7 +1330,7 @@ def _mat2npz(path_name, electrode_adjustment, convert_birdid):
         stim_arry.append(tmp_array)
     stim_arry = np.asarray(stim_arry)
 
-    return (header_df, spike_data, stim_arry)
+    return (header_df, spike_data, stim_arry, birdids, units, tmp_spikewaveforms)
 
 
 def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
@@ -1344,6 +1345,7 @@ def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
     note:
         the spiketrain of each trial is centered according to the stimulus onset time
     """
+    # from Tkinter import *
     import Tkinter
     from tkFileDialog import askopenfilename
 
@@ -1351,6 +1353,8 @@ def load_mat_data(data_dir="D:\\Google_Drive\\Lab_Data\\",
     root = Tkinter.Tk()
     path_name = askopenfilename(parent=root, initialdir=data_dir)
     root.withdraw()  # close the main root window
+    # path = "C:\\Users\\md\\Dropbox\\Lab_Data\\2015_NCM_syllable_surprisal\\Raw_data\\YW570\\"
+    # filename = "matrix_MDYW570_Kai_CanarySongContext_6scISI_.mat"
     header_df, spike_data, stims = _mat2npz(path_name, electrode_adjustment, convert_birdid)
     return (header_df, spike_data, stims, path_name)
 
@@ -1382,12 +1386,17 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
     pre_stims = []  # store pre_stim from each data files
     stim_waveforms = []
     stim_max_ndpts = 0  # number of data points in the longest stimulus
+    # spikewaveform data
+    condtion = []
+    id = []
+    spikewaveforms = []
+
 
     for fn in files:
         # add recording names to the header for backup use
         recording_fn = fn[path_length:]
         print(recording_fn)
-        header, spikes, stims = _mat2npz(fn, electrode_adjustment, convert_birdid)
+        header, spikes, stims, birdids, units, tmp_spikewaveforms = _mat2npz(fn, electrode_adjustment, convert_birdid)
         fn_list.extend([recording_fn] * len(header))
         header_list.append(header)
         spikes_list.append(spikes)
@@ -1397,6 +1406,13 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
         stim_waveforms.append(stims)
         if stims.shape[1] > stim_max_ndpts:
             stim_max_ndpts = stims.shape[1]
+
+        tmp_id = [birdid2str(birdids[i, 0]) + separator + str(int(units[i, 0])) for i in range(len(units))]
+        tmp_condition = [recording_fn] * len(tmp_id)
+
+        condtion.extend(tmp_condition)
+        id.extend(tmp_id)
+        spikewaveforms.extend(tmp_spikewaveforms)
 
     # pad short stim with NaN so that all stimuli have the same length
     for i in range(len(stim_waveforms)):
@@ -1447,8 +1463,9 @@ def batch_mat2npz(npz_filename, directory="C:\\Users\\md\\Dropbox\\Lab_Data\\", 
     if (type(header_all["birdid"].values[0]) is np.str):
         header_all["birdid"] = [str2birdid(bird) for bird in header_all.birdid.values]
 
-    np.savez_compressed(path_name + "/" + npz_filename, header=header_all.values, spikes=spike_all, filenames=filename_array, stim_waveforms=stim_waveforms)
-
+    np.savez_compressed(path_name + "/" + npz_filename, header=header_all.values, spikes=spike_all, filenames=filename_array,
+                        stim_waveforms=stim_waveforms,
+                        spike_conditions=np.asarray(condtion), spike_ids=np.asarray(id), spike_waveforms=spikewaveforms)
 
 def save_npz_data(filename, header, spikes, stims):
     """
