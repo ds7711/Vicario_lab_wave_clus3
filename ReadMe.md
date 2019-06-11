@@ -1,7 +1,24 @@
 ﻿# Vicario Lab Spike Sorting
 
-Use wave_clus3 for fully unsupervised spike sorting. 
+Use wave_clus3 for fully unsupervised spike sorting.
 
+## Steps
+
+1. Put all .smr files to be processed in one single folder.
+2. Increase the number of "free" channels that each .smr file can store to 300. e.g., use `increase_free_channels.s2s`, the script is in the Spike2Matlab folder.
+	- Note: the following steps will not work if the number of "free" channels is not enough.
+3. Change parameters & path for `vicario_lab_spikesorting.m` if used on a new computer and run `vicario_lab_spikesorting.m`.
+	- The spikesorting often takes a long time and may need to run over night or several days, depending on the amount of data to be processed. It is recommended to first test a few files before running on all files.
+	- See "instructions" for details.
+4. Run `STD_Threshold2Matlab.s2s` to obtain thresholded multi-unit channels. This script is in the Spike2Matlab folder.
+	- Change the `X` at line `var NumStd := X;` to your prefer threshold. The default is 2.
+	- Change the `X` at line `var exportflag% := X;`. If `X=1`, .smr files will be exported to .mat files. If `X=0`, the script will only threshold and create multi-unit wavemark channels but NOT export to .mat format.
+5. Run spikesorting first and then threshold to make the analysis easier. If one does thresholding and exporting (step 4) first and spikesorting later, single-unit wavemark channels will not be exported to .mat files.
+	- If one wants to threshold and spikesorting second, do not export during thresholding. Instead, use `Spike2Matlab_AllChannel_Batch_v0.1.s2s` to export both MUA and SUA data after both procedure is done.
+	- One could also use `Spike2Matlab_AllChannel_Batch_v0.1.s2s` to selectively export only SUA or MUA by skipping step 3 or 4.
+6. Run `combine_efe_left_right.m` to combine the data from "master" & "slave" computer.
+	- Note, the filename from the master and slave computer must follow the following naming convention.
+7. Use 
 
 ## Instructions
 
@@ -14,8 +31,9 @@ Use wave_clus3 for fully unsupervised spike sorting.
 	- Create a new folder to store the new .smr files.
 5. Run vicario_lab_spikesorting.m and follow the instruction.
 6. The detected MUA and SUA will be stored as wavemark channels in original .smr files.
-	- MUA has prefix mu. e.g. mu_3 means MUA from channel 3.
+	- MUA has prefix mu. e.g. mu_3 means MUA from channel 3. channel 3 corresponds to electrode 2.
 	- SUA has prefix su. e.g., sua_3_1 means the 1st classes sorted from channel 3.
+	- After data are converted into SpikeData object in Python, representation for MUA can be divided exactly whereas SUA can NOT! It can be used to selectively analyze MUA or SUA data.
 
 ## Dependencies
 
@@ -43,7 +61,7 @@ Use wave_clus3 for fully unsupervised spike sorting.
 1. Run wave_clus through vicario_lab_spikesorting. 
 
     global flag;
-    flag.MUA = 0;
+    flag.MUA = 1;
     flag.SUA = 0;
     flag.trial = 0;
     
