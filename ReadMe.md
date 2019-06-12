@@ -1,6 +1,15 @@
-﻿# Vicario Lab Spike Sorting
+﻿# Vicario Lab Spike Sorting & Data Pre-Processing
+ 
+ Multi-unit, single-unit detection and conversion to `.npz` data for flexible and efficient analysis in Python.
+ 
+ ## Outline
 
-Use wave_clus3 for fully unsupervised spike sorting.
+1. Single-unit detection: spike sorting. Use matlab script `vicario_lab_spikesorting.m`, which calls [wave_clus3](https://github.com/csn-le/wave_clus) for fully unsupervised spike sorting.
+2. Multi-unit detection: thresholded MUA. Use spike2 script `STD_Threshold2Matlab.s2s`.
+3. Export MUA & SUA data stored .smr files into .mat format. Use spike2 script `Spike2Matlab_AllChannel_Batch_v0.1.s2s` or use the export function in `STD_Threshold2Matlab.s2s`.
+4. Combine data from master & slave computer based on filenames. Use matlab script 'combine_efe_left_right.m'.
+5. For each experiment condition (recording session, corresponds to one pair of .smr files from master and slave computer), combine data from different birds and store the data in .npz format. Use functions in `mdlab.py`.
+6. Analyze data in Python based on `mdlab.py`.
 
 ## Steps
 
